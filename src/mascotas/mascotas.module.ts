@@ -9,7 +9,7 @@ import { url } from 'inspector';
 @Module({
   imports:[TypeOrmModule.forFeature([Mascota]),
 HttpModule.register({
-  baseURL: "http://localhost:3002"
+  baseURL: "http://localhost:3001"
   })],  
   controllers: [MascotasController],
   providers: [MascotasService],
