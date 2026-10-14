@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { CreateMascotaDto } from './dto/create-mascota.dto';
 import { UpdateMascotaDto } from './dto/update-mascota.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -7,51 +7,44 @@ import { Repository } from 'typeorm';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 
+import { ConfigService } from '@nestjs/config';
+
 @Injectable()
 export class MascotasService {
 
   constructor(
   @InjectRepository(Mascota)
         private readonly mascotaRepository: Repository<Mascota>,
-
-        private readonly httpService: HttpService
+        private readonly httpService: HttpService,
   ){
   }
 
-  
   async create(createMascotaDto: CreateMascotaDto) {
-      try {
-        const urlDueno = `/clientes/${createMascotaDto.id_dueño}`;
-        await firstValueFrom(this.httpService.get(urlDueno));
-
-      } catch (error) {
-        throw new NotFoundException("El dueño no existe")
-      }
       
+      try{
+        await firstValueFrom(this.httpService.get(`/clientes/${createMascotaDto.id_dueño}`));
+      }
+      catch(error: any){
+        if(error.response?.status === 404){throw new NotFoundException('Ese dueño no existe wey')}
+        throw new ServiceUnavailableException('valió madres el servicio clientes')
+      }
+
       const mascota = this.mascotaRepository.create(createMascotaDto)
-      await this.mascotaRepository.save(mascota)
+      const mascotaGuardada= await this.mascotaRepository.save(mascota)
       return{
         'mensaje' : 'mascota creada',
-        'mascota' : mascota
+        'mascota' : mascotaGuardada
       }
   }
   
 
   async findAll() {
 
-    const mascotas = this.mascotaRepository.find();
-    
-    try {
-      const duenosResponse = await firstValueFrom(this.httpService.get('/clientes'));
-      const duenos = duenosResponse.data;
-      
-      return (await mascotas).map(mascota =>{
-        const duenoEncontrado = duenos.find((d: { id: number; }) => d.id === mascota.id_dueño)
-      })
-    } catch (error) {
-       throw new BadRequestException("Error en la busqueda de los ")
-    }
+    const mascotas = await this.mascotaRepository.find();
 
+    return {
+      "Lista de mascotas" : mascotas
+    }
   }
 
   async findOne(id: number) {
@@ -61,7 +54,7 @@ export class MascotasService {
       if (!mascota) {
         throw new NotFoundException("la mascota no se ha encontrado")
       }
-      const duenosResponse = await firstValueFrom(this.httpService.get(`/clientes/${mascota.id}`));
+      const duenosResponse = await firstValueFrom(this.httpService.get(`/clientes/${mascota.id_dueño}`));
       const dueno = duenosResponse.data;
 
       return {
